@@ -34,13 +34,6 @@ namespace ACLKeeper
 		private ACL acl = null;
 		private FileSystemWatcher watcher = null;
 
-		private readonly Mutex mutex = new Mutex();
-
-		~CatalogueItem()
-		{
-			mutex?.Dispose();
-		}
-
 		public string DebugId
 		{
 			get => path;
@@ -127,11 +120,8 @@ namespace ACLKeeper
 
 		public bool ACLEquals(ACL other)
 		{
-			mutex.WaitOne();
-			bool result = acl.Equals(other);
-			mutex.ReleaseMutex();
-
-			return result;
+			//return Volatile.Read<ACL>(ref acl).Equals(other); //In case you are concerned about CPU cache coherency on your target platform
+			return acl.Equals(other);
 		}
 
 		public bool UpdateACL()
@@ -140,9 +130,8 @@ namespace ACLKeeper
 			if (!newacl.Load(path))
 				return false;
 
-			mutex.WaitOne();
-				acl = newacl;
-			mutex.ReleaseMutex();
+			//Volatile.Write<ACL>(ref acl, newacl); //In case you are concerned about CPU cache coherency on your target platform
+			acl = newacl;
 
 			return true;
 		}
