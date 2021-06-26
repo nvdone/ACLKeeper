@@ -14,14 +14,12 @@
 
 using NVD.SQL;
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.ServiceProcess;
 using System.Threading;
-using System.Security.AccessControl;
-using System.Security.Principal;
-using System.Linq;
 
 namespace ACLKeeper
 {
@@ -40,8 +38,8 @@ namespace ACLKeeper
 		private Log log = null;
 		private Catalogue catalogue = null;
 
-		private readonly ConcurrentQueue<string> checkQueue = new ConcurrentQueue<string>();
-		private readonly ConcurrentQueue<string> fixQueue = new ConcurrentQueue<string>();
+		private readonly ConcurrentQueue<PathItem> checkQueue = new ConcurrentQueue<PathItem>();
+		private readonly ConcurrentQueue<PathItem> fixQueue = new ConcurrentQueue<PathItem>();
 
 		public Service(string dbPath, string exeName)
 		{
@@ -197,30 +195,45 @@ namespace ACLKeeper
 				{
 					if (!checkQueue.IsEmpty)
 					{
-						while (checkQueue.TryDequeue(out string path))
+						while (checkQueue.TryDequeue(out PathItem pathItem))
 						{
-							log.Add(Log.LOGLEVEL.DEBUG, "Checking " + path);
+							log.Add(Log.LOGLEVEL.DEBUG, "Checking " + pathItem.Path);
 
-							if (Directory.Exists(path) || File.Exists(path))
+							switch(pathItem.CheckACL())
 							{
-								log.Add(Log.LOGLEVEL.DEBUG, "Path exists " + path);
+								case PathItem.CheckResult.PATHMISSING:
+									log.Add(Log.LOGLEVEL.DEBUG, "Path does not exist " + pathItem.Path);
+									break;
+								
+								case PathItem.CheckResult.NOROOT:
+									log.Add(Log.LOGLEVEL.ERROR, "No root for " + pathItem.Path);
+									break;
 
-								CatalogueItem rootItem = catalogue.GetRootItem(path);
+								case PathItem.CheckResult.FAILEDTOGETACL:
+									log.Add(Log.LOGLEVEL.DEBUG, "Failed to get path ACL for " + pathItem.Path);
+									if (!checkQueue.Contains(pathItem))
+										checkQueue.Enqueue(pathItem);
+									break;
 
-								if (rootItem != null)
-								{
-									log.Add(Log.LOGLEVEL.DEBUG, "Found root for " + path);
+								case PathItem.CheckResult.NEEDTOFIX:
+									if (!fixQueue.Contains(pathItem))
+									{
+										fixQueue.Enqueue(pathItem);
+										log.Add(Log.LOGLEVEL.DEBUG, "Enqueued for fix " + pathItem.Path);
+									}
+									if (pathItem.IsDirectory)
+										enqueueSubItemsForCheck(pathItem);
+									break;
 
-									checkACL(rootItem, path);
-								}
-								else
-								{
-									log.Add(Log.LOGLEVEL.ERROR, "No root for " + path);
-								}
-							}
-							else
-							{
-								log.Add(Log.LOGLEVEL.DEBUG, "Path does not exist " + path);
+								case PathItem.CheckResult.NONEEDTOFIX:
+									log.Add(Log.LOGLEVEL.DEBUG, "No need to fix " + pathItem.Path);
+									if (pathItem.IsDirectory)
+										enqueueSubItemsForCheck(pathItem);
+									break;
+								
+								default:
+									log.Add(Log.LOGLEVEL.ERROR, "Unknown check result for " + pathItem.Path);
+									break;
 							}
 
 							if (stopEvent.WaitOne(0))
@@ -238,6 +251,37 @@ namespace ACLKeeper
 			}
 		}
 
+		private void enqueueSubItemsForCheck(PathItem pathItem)
+		{
+			try
+			{
+				foreach (string subPath in Directory.GetFiles(pathItem.Path))
+				{
+					PathItem subItem = new PathItem(subPath, pathItem.RootItem);
+					if (!checkQueue.Contains(subItem))
+					{
+						checkQueue.Enqueue(subItem);
+						log.Add(Log.LOGLEVEL.DEBUG, "Enqueued file for check " + subPath);
+					}
+				}
+			}
+			catch { }
+
+			try
+			{
+				foreach (string subPath in Directory.GetDirectories(pathItem.Path))
+				{
+					PathItem subItem = new PathItem(subPath, pathItem.RootItem);
+					if (!checkQueue.Contains(subItem))
+					{
+						checkQueue.Enqueue(subItem);
+						log.Add(Log.LOGLEVEL.DEBUG, "Enqueued dir for check " + subPath);
+					}
+				}
+			}
+			catch { }
+		}
+
 		private void fixLoop()
 		{
 			while (true)
@@ -246,60 +290,32 @@ namespace ACLKeeper
 				{
 					if (!fixQueue.IsEmpty)
 					{
-						while (fixQueue.TryDequeue(out string path))
+						while (fixQueue.TryDequeue(out PathItem pathItem))
 						{
-							log.Add(Log.LOGLEVEL.DEBUG, "Fixing " + path);
+							log.Add(Log.LOGLEVEL.DEBUG, "Fixing " + pathItem.Path);
 
-							if (Directory.Exists(path))
+							switch (pathItem.FixACL())
 							{
-								try
-								{
-									DirectoryInfo di = new DirectoryInfo(path);
-									DirectorySecurity ds = di.GetAccessControl(AccessControlSections.Access);
-									AuthorizationRuleCollection arc = ds.GetAccessRules(true, true, typeof(NTAccount));
+								case PathItem.FixResult.PATHMISSING:
+									log.Add(Log.LOGLEVEL.INFO, "Missing path " + pathItem.Path);
+									break;
 
-									foreach (FileSystemAccessRule fsar in arc)
-									{
-										ds.RemoveAccessRule(fsar);
-									}
-									ds.SetAccessRuleProtection(false, true);
-									di.SetAccessControl(ds);
+								case PathItem.FixResult.ISROOT:
+									log.Add(Log.LOGLEVEL.ERROR, "Aborted fix of a root path " + pathItem.Path);
+									break;
 
-									log.Add(Log.LOGLEVEL.INFO, "Fixed " + path);
+								case PathItem.FixResult.FIXED:
+									log.Add(Log.LOGLEVEL.INFO, "Fixed " + pathItem.Path);
+									break;
+
+								case PathItem.FixResult.FAILEDTOFIX:
+									log.Add(Log.LOGLEVEL.INFO, "Failed to fix " + pathItem.Path);
+									if (!fixQueue.Contains(pathItem))
+										fixQueue.Enqueue(pathItem);
+									break;
+								default:
+									break;
 								}
-								catch
-								{
-									log.Add(Log.LOGLEVEL.INFO, "Failed to fix " + path);
-
-									if (!fixQueue.Contains(path))
-										fixQueue.Enqueue(path);
-								}
-							}
-							else if (File.Exists(path))
-							{
-								try
-								{
-									FileInfo fi = new FileInfo(path);
-									FileSecurity fs = fi.GetAccessControl(AccessControlSections.Access);
-									AuthorizationRuleCollection arc = fs.GetAccessRules(true, true, typeof(NTAccount));
-
-									foreach (FileSystemAccessRule fsar in arc)
-									{
-										fs.RemoveAccessRule(fsar);
-									}
-									fs.SetAccessRuleProtection(false, true);
-									fi.SetAccessControl(fs);
-
-									log.Add(Log.LOGLEVEL.INFO, "Fixed " + path);
-								}
-								catch
-								{
-									log.Add(Log.LOGLEVEL.INFO, "Failed to fix " + path);
-
-									if (!fixQueue.Contains(path))
-										fixQueue.Enqueue(path);
-								}
-							}
 
 							if (stopEvent.WaitOne(0))
 								return;
@@ -318,81 +334,21 @@ namespace ACLKeeper
 
 		private void created(object sender, FileSystemEventArgs e)
 		{
-			if (!checkQueue.Contains(e.FullPath))
+			PathItem pathItem = new PathItem(e.FullPath, catalogue);
+			if (!checkQueue.Contains(pathItem))
 			{
-				checkQueue.Enqueue(e.FullPath);
+				checkQueue.Enqueue(pathItem);
 				log.Add(Log.LOGLEVEL.DEBUG, "Enqueued since created " + e.FullPath);
 			}
 		}
 
 		private void renamed(object sender, RenamedEventArgs e)
 		{
-			if (!checkQueue.Contains(e.FullPath))
+			PathItem pathItem = new PathItem(e.FullPath, catalogue);
+			if (!checkQueue.Contains(pathItem))
 			{
-				checkQueue.Enqueue(e.FullPath);
+				checkQueue.Enqueue(pathItem);
 				log.Add(Log.LOGLEVEL.DEBUG, "Enqueued since renamed " + e.FullPath);
-			}
-		}
-
-		void checkACL(CatalogueItem rootItem, string path)
-		{
-			ACL pathACL = new ACL();
-
-			if(!pathACL.Load(path))
-			{
-				log.Add(Log.LOGLEVEL.DEBUG, "Failed to get path ACL for " + path);
-				if (!checkQueue.Contains(path))
-					checkQueue.Enqueue(path);
-				return;
-			}
-
-			if (!rootItem.ACLEquals(pathACL))
-			{
-				if (!rootItem.IsPath(path))
-				{
-					if (!fixQueue.Contains(path))
-					{
-						fixQueue.Enqueue(path);
-						log.Add(Log.LOGLEVEL.DEBUG, "Enqueued for fix " + path);
-					}
-				}
-				else
-				{
-					log.Add(Log.LOGLEVEL.ERROR, "Aborted root path fix for " + path);
-				}
-			}
-			else
-			{
-				log.Add(Log.LOGLEVEL.DEBUG, "No need to fix " + path);
-			}
-
-			if(Directory.Exists(path))
-			{
-				try
-				{
-					foreach (string subPath in Directory.GetFiles(path))
-					{
-						if (!checkQueue.Contains(subPath))
-						{
-							checkQueue.Enqueue(subPath);
-							log.Add(Log.LOGLEVEL.DEBUG, "Enqueued file for check " + subPath);
-						}
-					}
-				}
-				catch { }
-
-				try
-				{
-					foreach (string subPath in Directory.GetDirectories(path))
-					{
-						if (!checkQueue.Contains(subPath))
-						{
-							checkQueue.Enqueue(subPath);
-							log.Add(Log.LOGLEVEL.DEBUG, "Enqueued dir for check " + subPath);
-						}
-					}
-				}
-				catch { }
 			}
 		}
 	}

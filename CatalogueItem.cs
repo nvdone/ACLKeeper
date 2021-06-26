@@ -120,7 +120,7 @@ namespace ACLKeeper
 
 		public bool ACLEquals(ACL other)
 		{
-			//return Volatile.Read<ACL>(ref acl).Equals(other); //In case you are concerned about CPU cache coherency on your target platform
+			//return Volatile.Read<ACL>(ref acl).Equals(other); //In case you are concerned about cache coherency on your target platform
 			return acl.Equals(other);
 		}
 
@@ -130,7 +130,7 @@ namespace ACLKeeper
 			if (!newacl.Load(path))
 				return false;
 
-			//Volatile.Write<ACL>(ref acl, newacl); //In case you are concerned about CPU cache coherency on your target platform
+			//Volatile.Write<ACL>(ref acl, newacl); //In case you are concerned about cache coherency on your target platform
 			acl = newacl;
 
 			return true;
@@ -187,12 +187,13 @@ namespace ACLKeeper
 				next_refresh = next_refresh.AddDays(1);
 		}
 
-		public bool Enqueue(ConcurrentQueue<string> queue)
+		public bool Enqueue(ConcurrentQueue<PathItem> queue)
 		{
-			if (queue.Contains(path))
+			PathItem pathItem = new PathItem(path, this);
+			if (queue.Contains(pathItem))
 				return false;
 
-			queue.Enqueue(path);
+			queue.Enqueue(pathItem);
 
 			return true;
 		}

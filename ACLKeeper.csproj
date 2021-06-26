@@ -95,6 +95,7 @@
     <Compile Include="Helper.cs" />
     <Compile Include="Log.cs" />
     <Compile Include="ACL.cs" />
+    <Compile Include="PathItem.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
