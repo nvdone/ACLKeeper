@@ -115,9 +115,11 @@ namespace ACLKeeper
 
 		private void refreshLog()
 		{
+			logDataGridView.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 			SQLite db = new SQLite("Data Source = \"" + dbPath + "\"");
 			DataTable table = db.GetDataTable("SELECT * FROM logs;");
 			logDataGridView.DataSource = table;
+			logDataGridView.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
 		}
 
 		private void saveButton_Click(object sender, EventArgs e)
@@ -242,11 +244,13 @@ namespace ACLKeeper
 				SQLite db = new SQLite("Data Source = \"" + dbPath + "\"");
 				if (queryTextBox.Text.ToLowerInvariant().StartsWith("select"))
 				{
+					resultDataGridView.DataSource = null;
 					DataTable table = db.GetDataTable(queryTextBox.Text);
 					resultDataGridView.DataSource = table;
 				}
 				else
 				{
+					resultDataGridView.DataSource = null;
 					db.Execute(queryTextBox.Text);
 					DataTable table = new DataTable();
 					table.Columns.Add("Message");
@@ -256,6 +260,7 @@ namespace ACLKeeper
 			}
 			catch
 			{
+				resultDataGridView.DataSource = null;
 				DataTable table = new DataTable();
 				table.Columns.Add("Message");
 				table.Rows.Add("Failure!");
