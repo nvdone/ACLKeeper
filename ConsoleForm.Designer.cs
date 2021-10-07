@@ -403,7 +403,7 @@ namespace ACLKeeper
 			// 
 			this.logDataGridView.AllowUserToAddRows = false;
 			this.logDataGridView.AllowUserToDeleteRows = false;
-			this.logDataGridView.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.AllCells;
+			this.logDataGridView.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.DisplayedCells;
 			this.logDataGridView.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
 			this.logDataGridView.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.logDataGridView.Location = new System.Drawing.Point(3, 3);
@@ -492,7 +492,7 @@ namespace ACLKeeper
 			// 
 			this.resultDataGridView.AllowUserToAddRows = false;
 			this.resultDataGridView.AllowUserToDeleteRows = false;
-			this.resultDataGridView.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.AllCells;
+			this.resultDataGridView.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.DisplayedCells;
 			this.resultDataGridView.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
 			this.resultDataGridView.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.resultDataGridView.Location = new System.Drawing.Point(0, 0);
