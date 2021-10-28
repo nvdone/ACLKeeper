@@ -14,6 +14,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -79,15 +80,17 @@ namespace ACLKeeper
 
 		public bool Equals(ACL other)
 		{
-			if (rules.Count != other.rules.Count)
+			Dictionary<IdentityReference, AccessRights> mySubstantialRules = rules.Where(i => i.Value.Substantial).ToDictionary(j => j.Key, j => j.Value);
+			Dictionary<IdentityReference, AccessRights> otherSubstantialRules = other.rules.Where(k => k.Value.Substantial).ToDictionary(l => l.Key, l => l.Value);
+
+			if (mySubstantialRules.Count() != otherSubstantialRules.Count())
 				return false;
 
-			foreach (IdentityReference ir in rules.Keys)
+			foreach (IdentityReference ir in mySubstantialRules.Keys)
 			{
-				if (!other.rules.ContainsKey(ir))
+				if (!otherSubstantialRules.ContainsKey(ir))
 					return false;
-
-				if (!rules[ir].Equals(other.rules[ir]))
+				if (!mySubstantialRules[ir].Equals(other.rules[ir]))
 					return false;
 			}
 

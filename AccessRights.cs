@@ -38,5 +38,13 @@ namespace ACLKeeper
 		{
 			return (allow & FileSystemRights.FullControl) == (other.allow & FileSystemRights.FullControl) && (deny & FileSystemRights.FullControl) == (other.deny & FileSystemRights.FullControl);
 		}
+
+		public bool Substantial
+		{
+			get
+			{
+				return ((allow | deny) & FileSystemRights.FullControl) != 0;
+			}
+		}
 	}
 }
