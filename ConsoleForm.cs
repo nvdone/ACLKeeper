@@ -87,13 +87,19 @@ namespace ACLKeeper
 
 		private bool saveSettings()
 		{
-			SQLite db = new SQLite("Data Source = \"" + dbPath + "\"");
+			bool retval = false;
+			try
+			{
+				SQLite db = new SQLite("Data Source = \"" + dbPath + "\"");
 
-			db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "loop", loopTextBox.Text);
-			db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "loglevel", loglevelTextBox.Text);
-			db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "bypassacl", bypassACLCheckBox.Checked ? "1" : "0");
+				db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "loop", loopTextBox.Text);
+				db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "loglevel", loglevelTextBox.Text);
+				db.Execute("UPDATE settings SET value = @1 WHERE name = @0;", "bypassacl", bypassACLCheckBox.Checked ? "1" : "0");
 
-			return catalogue.Save(db);
+				retval = catalogue.Save(db);
+			}
+			catch { }
+			return retval;
 		}
 
 		private void updateCatalogueGridView()

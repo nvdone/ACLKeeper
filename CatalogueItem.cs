@@ -94,7 +94,7 @@ namespace ACLKeeper
 				}
 				else
 				{
-					id = db.Execute("INSERT into catalogue (path, monitoring, refresh_time, refresh_dow) VALUES (@0, @1, @2, @3);", path, monitoring ? 1 : 0, refresh_time, refresh_dow);
+					id = db.ExecuteGetIdentity("INSERT into catalogue (path, monitoring, refresh_time, refresh_dow) VALUES (@0, @1, @2, @3);", path, monitoring ? 1 : 0, refresh_time, refresh_dow);
 				}
 			}
 			catch
