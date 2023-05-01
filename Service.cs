@@ -189,6 +189,8 @@ namespace ACLKeeper
 
 		private void checkLoop()
 		{
+			Queue<PathItem> nextTimeQueue = new Queue<PathItem>();
+
 			while (true)
 			{
 				try
@@ -211,8 +213,8 @@ namespace ACLKeeper
 
 								case PathItem.CheckResult.FAILEDTOGETACL:
 									log.Add(Log.LOGLEVEL.DEBUG, "Failed to get path ACL for " + pathItem.Path);
-									if (!checkQueue.Contains(pathItem))
-										checkQueue.Enqueue(pathItem);
+									if (!nextTimeQueue.Contains(pathItem))
+										nextTimeQueue.Enqueue(pathItem);
 									break;
 
 								case PathItem.CheckResult.NEEDTOFIX:
@@ -238,6 +240,13 @@ namespace ACLKeeper
 
 							if (stopEvent.WaitOne(0))
 								return;
+						}
+
+						while (nextTimeQueue.Count > 0)
+						{
+							PathItem dummy = nextTimeQueue.Dequeue();
+							if (!checkQueue.Contains(dummy))
+								checkQueue.Enqueue(dummy);
 						}
 					}
 				}
@@ -284,6 +293,8 @@ namespace ACLKeeper
 
 		private void fixLoop()
 		{
+			Queue<PathItem> nextTimeQueue = new Queue<PathItem>();
+
 			while (true)
 			{
 				try
@@ -310,8 +321,8 @@ namespace ACLKeeper
 
 								case PathItem.FixResult.FAILEDTOFIX:
 									log.Add(Log.LOGLEVEL.INFO, "Failed to fix " + pathItem.Path);
-									if (!fixQueue.Contains(pathItem))
-										fixQueue.Enqueue(pathItem);
+									if (!nextTimeQueue.Contains(pathItem))
+										nextTimeQueue.Enqueue(pathItem);
 									break;
 								default:
 									break;
@@ -319,6 +330,13 @@ namespace ACLKeeper
 
 							if (stopEvent.WaitOne(0))
 								return;
+						}
+
+						while(nextTimeQueue.Count > 0)
+						{
+							PathItem dummy = nextTimeQueue.Dequeue();
+							if(!fixQueue.Contains(dummy))
+								fixQueue.Enqueue(dummy);
 						}
 					}
 				}
